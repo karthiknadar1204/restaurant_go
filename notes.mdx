@@ -423,3 +423,901 @@ This capital-letter rule applies to:
 You don’t need to write `public` or `private` in Go — just capitalize or not.
 
 ---
+
+
+
+
+
+
+---
+
+### 📁 File: `database/connection.go`
+
+(Naming may vary, but this is your DB setup file.)
+
+---
+
+## 🧱 Imports
+
+```go
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+```
+
+### What do these mean?
+
+| Import              | What it's for                                                                |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `context`           | Used to manage timeouts and cancellations (e.g., "stop trying after 10s")    |
+| `fmt`               | Print to terminal (`fmt.Print`, `fmt.Println`)                               |
+| `log`               | Logging errors (e.g., if MongoDB fails to connect)                           |
+| `time`              | Work with timeouts or delays                                                 |
+| `mongo` & `options` | These are from the official MongoDB Go Driver — they let you talk to MongoDB |
+
+---
+
+## 🔧 Function: `DBinstance()`
+
+```go
+func DBinstance() *mongo.Client {
+```
+
+* `func` — defines a function
+* `DBinstance()` — the name of the function
+* `*mongo.Client` — it returns a pointer to a MongoDB client (i.e., a connection to the database)
+
+> ✅ This function sets up the connection to your MongoDB server.
+
+---
+
+### 🧭 Define your MongoDB URI (connection string)
+
+```go
+	MongoDb := "mongodb://localhost:27017"
+	fmt.Print(MongoDb)
+```
+
+* This says: "Connect to MongoDB running locally on port 27017"
+* `fmt.Print(...)` — prints that string to your terminal
+
+---
+
+### 🚪 Create a new MongoDB client
+
+```go
+	client, err := mongo.NewClient(options.Client().ApplyURI(MongoDb))
+```
+
+* `mongo.NewClient(...)` — creates a new MongoDB client
+* `options.Client().ApplyURI(...)` — tells it where your MongoDB server is
+* `err` — if something goes wrong, this will catch the error
+
+---
+
+### ⚠️ Check for error
+
+```go
+	if err != nil {
+		log.Fatal(err)
+	}
+```
+
+* `if err != nil` — if there **is** an error...
+* `log.Fatal(err)` — print it and **stop the program**
+
+---
+
+### 🕐 Set timeout for connection
+
+```go
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+```
+
+* `context.WithTimeout(...)` — tells MongoDB: **"You have 10 seconds to connect. After that, give up."**
+* `defer cancel()` — schedules `cancel()` to run when the function ends (clean up resources)
+
+---
+
+### 🔌 Connect to MongoDB
+
+```go
+	err = client.Connect(ctx)
+```
+
+This line tells your app:
+
+> “Now, actually **try to connect** to MongoDB using the context with the timeout.”
+
+---
+
+### ❗Handle any connection error
+
+```go
+	if err != nil {
+		log.Fatal(err)
+	}
+```
+
+If it fails to connect, log the error and stop.
+
+---
+
+### ✅ Confirm the connection worked
+
+```go
+	fmt.Println("connected to mongodb")
+```
+
+Just prints a success message if everything worked.
+
+---
+
+### 🔙 Return the MongoDB client
+
+```go
+	return client
+}
+```
+
+This gives back the connected client object so you can use it in other parts of your app.
+
+---
+
+## 🌍 Global Variable: `Client`
+
+```go
+var Client *mongo.Client = DBinstance()
+```
+
+* This runs `DBinstance()` when your app starts
+* Stores the MongoDB connection in a global variable `Client`
+* Now **any file** can import this package and use `database.Client`
+
+---
+
+## 📂 Function: `OpenCollection`
+
+```go
+func OpenCollection(client *mongo.Client, collectionName string) *mongo.Collection {
+```
+
+* `OpenCollection(...)` is a helper function
+* It accepts:
+
+  * a MongoDB client
+  * a collection name (like "users", "orders", etc.)
+* It returns a pointer to that **MongoDB collection**
+
+---
+
+### 🏗 Get the actual collection
+
+```go
+	var collection *mongo.Collection = client.Database("restaurant").Collection(collectionName)
+```
+
+* `client.Database("restaurant")` → Accesses the database named `"restaurant"`
+* `.Collection(collectionName)` → Accesses a collection/table inside it
+
+---
+
+### 🔙 Return the collection
+
+```go
+	return collection
+}
+```
+
+Now you can use that returned collection to do things like insert data, read data, etc.
+
+---
+
+## ✅ TL;DR — What This File Does
+
+| Part                  | What it does                                               |
+| --------------------- | ---------------------------------------------------------- |
+| `DBinstance()`        | Connects to MongoDB and returns the connection client      |
+| `Client`              | A global variable storing the connected MongoDB client     |
+| `OpenCollection(...)` | Opens a specific collection in the `"restaurant"` database |
+
+---
+
+
+| Term in SQL (MySQL/PostgreSQL) | Equivalent in MongoDB | Example                          |
+| ------------------------------ | --------------------- | -------------------------------- |
+| Database                       | Database              | `restaurant`                     |
+| Table                          | **Collection**        | `food`, `users`, `orders`, etc.  |
+| Row                            | Document              | One user's data, one order, etc. |
+
+
+
+
+
+Great! Let’s go **line-by-line** and break this down for you **like you're new to Go, Gin, and MongoDB**. You're looking at a typical **GET handler** in a Go REST API built using the Gin web framework.
+
+---
+
+### 🧠 FUNCTION SIGNATURE: `func GetUser() gin.HandlerFunc`
+
+#### 🔹 `gin.HandlerFunc`
+
+* This is a **type** from the `Gin` web framework.
+
+* It is **just a function that takes `*gin.Context` as an argument**:
+
+  ```go
+  type HandlerFunc func(*Context)
+  ```
+
+* So when you write:
+
+  ```go
+  func GetUser() gin.HandlerFunc
+  ```
+
+  You're returning a handler function that can process a web request.
+
+---
+
+### 🔁 RETURNING AN INLINE HANDLER FUNCTION
+
+```go
+return func(c *gin.Context) {
+```
+
+* This **returns** a handler function, like saying:
+
+  > “Hey Gin, when someone calls `/users/:user_id`, run this function.”
+
+* `c *gin.Context` contains all the info about the HTTP request, like:
+
+  * URL params
+  * Headers
+  * Request body
+  * How to send a response
+
+---
+
+### ⏳ CONTEXT SETUP
+
+```go
+var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+```
+
+* **Purpose**: Set a timeout for DB queries (to avoid hanging connections).
+* `context.Background()` starts a new root context.
+* `WithTimeout` says: "Cancel the DB query if it takes more than 100 seconds."
+* `cancel` is a cleanup function that should be **deferred** (called at the end).
+
+---
+
+### 🧾 PATH PARAMETER EXTRACTION
+
+```go
+userId := c.Param("user_id")
+```
+
+* Extracts the path parameter from the URL.
+* If the route is `/users/:user_id` and you hit `/users/123`, then `userId = "123"`
+
+---
+
+### 📦 WHAT IS THIS: `var user models.User`
+
+```go
+var user models.User
+```
+
+* Declares a variable `user` of type `User` which is a **struct defined in your `models` package**.
+* This will be used to store data fetched from MongoDB.
+
+Example `User` model (you likely have something like this):
+
+```go
+type User struct {
+    ID        primitive.ObjectID `bson:"_id"`
+    Name      string             `bson:"name"`
+    Email     string             `bson:"email"`
+    // ...
+}
+```
+
+---
+
+### 📦 WHAT IS `bson`?
+
+```go
+bson.M{"user_id": userId}
+```
+
+* `bson` stands for **Binary JSON**, the format MongoDB uses to store data.
+* `bson.M` is a shorthand for **map\[string]interface{}** — like a JSON object in Go.
+
+So:
+
+```go
+bson.M{"user_id": userId}
+```
+
+means:
+
+```json
+{ "user_id": "123" }
+```
+
+This is the **MongoDB filter** to find one user.
+
+---
+
+### 🧲 DATABASE QUERY
+
+```go
+err := userCollection.FindOne(ctx, bson.M{"user_id": userId}).Decode(&user)
+```
+
+* `userCollection`: your MongoDB "users" collection (already set up).
+* `.FindOne(...)`: Search for one document matching the filter.
+* `.Decode(&user)`: Convert MongoDB document into your Go struct (`models.User`).
+
+---
+
+### 🧹 CLEANUP
+
+```go
+defer cancel()
+```
+
+* Ensures that the `cancel()` function (from the context) runs **after this function ends**.
+* It’s like saying: "Once you're done, clean up the timeout context."
+
+---
+
+### 🚫 IF USER NOT FOUND OR ERROR
+
+```go
+if err != nil {
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "error occurred while listing user items"})
+}
+```
+
+* If there's an error (like no user found or DB failure), return a `500 Internal Server Error`.
+
+> `gin.H` is just shorthand for `map[string]interface{}` — it creates JSON easily.
+
+---
+
+### ✅ SUCCESSFUL RESPONSE
+
+```go
+c.JSON(http.StatusOK, user)
+```
+
+* Sends back a `200 OK` HTTP response with the `user` struct as JSON.
+
+---
+
+### 🧠 SUMMARY:
+
+You wrote a function that Gin can use when someone requests a user. It:
+
+1. Waits max 100s to avoid stuck requests.
+2. Gets the user ID from the URL.
+3. Queries the MongoDB users collection.
+4. If found, sends the user back as JSON.
+5. If there's a problem, shows an error.
+
+
+
+
+
+Absolutely — let’s break this down **very clearly and simply**, step by step. You're right to want to understand *every part* like `&SignedDetails`, `jwt.StandardClaims`, `NewWithClaims`, etc. So here we go:
+
+---
+
+### 🔐 What is this whole block doing?
+
+It's **creating a JWT access token and a refresh token** for a user after they log in or sign up.
+
+---
+
+### 📦 First: What is `SignedDetails`?
+
+In your code, this is a **custom struct** you created:
+
+```go
+type SignedDetails struct {
+    Email      string
+    First_name string
+    Last_name  string
+    Uid        string
+    jwt.StandardClaims
+}
+```
+
+This means:
+
+* You are defining a new struct type named `SignedDetails`.
+* It has your custom fields: `Email`, `First_name`, `Last_name`, and `Uid`.
+* It also embeds `jwt.StandardClaims`, which comes from the JWT library and contains default JWT fields like `ExpiresAt` (when the token expires), `Issuer`, etc.
+
+---
+
+### 📍 Now what is `&SignedDetails{ ... }`?
+
+This is how you **create a pointer to a `SignedDetails` struct** in Go.
+
+* `SignedDetails{ ... }` — creates a value of that struct.
+* `&SignedDetails{ ... }` — gives you a *pointer* to that struct. This is needed because `jwt.NewWithClaims` expects a pointer.
+
+---
+
+### 🕒 What is `jwt.StandardClaims{ ExpiresAt: ... }`?
+
+This is part of the JWT package. It gives you standard claims like:
+
+* `ExpiresAt`: When the token should expire.
+* `Issuer`: Who issued the token.
+* `Subject`: The subject of the token.
+* etc.
+
+Here, you’re setting just one:
+
+```go
+ExpiresAt: time.Now().Local().Add(time.Hour * 24).Unix()
+```
+
+That means:
+
+* Take the current local time (`time.Now().Local()`),
+* Add 24 hours to it,
+* Convert it to a Unix timestamp (an integer) using `.Unix()`.
+
+So the token will expire **24 hours from now**.
+
+For the refresh token, it's 168 hours (7 days):
+
+```go
+time.Now().Local().Add(time.Hour * 168).Unix()
+```
+
+---
+
+### 🔏 What does this line do?
+
+```go
+token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(SECRET_KEY))
+```
+
+Let’s break this line into parts:
+
+#### `jwt.NewWithClaims(...)`
+
+This creates a new JWT token object.
+
+* `jwt.SigningMethodHS256`: This is the algorithm used to sign the token (HMAC SHA-256).
+* `claims`: The payload — your `SignedDetails` struct.
+
+#### `.SignedString([]byte(SECRET_KEY))`
+
+* This signs the JWT with your secret key (`SECRET_KEY`) so it can’t be tampered with.
+* `SECRET_KEY` must be a byte slice (`[]byte`), hence the conversion.
+
+This returns:
+
+* `token`: the final **JWT token string**.
+* `err`: if anything failed during signing.
+
+---
+
+### 🧼 What about the `refreshClaims`?
+
+Same idea, but with only the `ExpiresAt` and no user info:
+
+```go
+refreshClaims := &SignedDetails{
+    StandardClaims: jwt.StandardClaims{
+        ExpiresAt: time.Now().Local().Add(time.Hour * 168).Unix(),
+    },
+}
+```
+
+You use this to generate a **refresh token** — which the user can send to get a new access token once the old one expires.
+
+---
+
+### ✅ Final return
+
+```go
+return token, refreshToken, err
+```
+
+* `token`: valid for 24 hours (access token)
+* `refreshToken`: valid for 7 days (refresh token)
+* `err`: error, if any occurred
+
+---
+
+### 🧠 Why do we use tokens in the first place?
+
+* **Access Token**: Sent with each request to prove the user is logged in. Expires quickly (24 hrs here).
+* **Refresh Token**: Used to get a new access token when the old one expires. Longer-lived (7 days here).
+* **JWTs**: Self-contained — include user info + expiry inside the token. No need to query DB every time.
+
+---
+
+### Summary of Each Keyword:
+
+| Keyword                      | Meaning                                      |
+| ---------------------------- | -------------------------------------------- |
+| `&SignedDetails{...}`        | Create a pointer to a `SignedDetails` struct |
+| `jwt.StandardClaims`         | Built-in JWT fields like `ExpiresAt`         |
+| `jwt.NewWithClaims(...)`     | Create a new token with claims               |
+| `.SignedString([]byte(...))` | Sign the token with a secret key             |
+| `SECRET_KEY`                 | Your app’s private key for signing JWTs      |
+
+---
+
+Would you like me to now **walk you through how this token is used in the login/signup flow**, or how it’s **validated** later when users make authenticated requests?
+
+
+
+
+
+Awesome — this is a critical piece in your authentication system. You're now looking at how JWT **validation** works in Go using Gin and the `github.com/golang-jwt/jwt` package.
+
+Let’s break **every single line and concept** down in your `ValidateToken` function:
+
+---
+
+## 🧠 Function Signature
+
+```go
+func ValidateToken(signedToken string) (claims *SignedDetails, msg string)
+```
+
+* `signedToken`: The JWT token string sent by the user (usually in headers like `Authorization: Bearer <token>`).
+* `returns`:
+
+  * `claims`: pointer to your `SignedDetails` struct if token is valid.
+  * `msg`: error message string, empty if token is valid.
+
+---
+
+## ✅ Step 1: Parse the Token
+
+```go
+token, err := jwt.ParseWithClaims(
+	signedToken,
+	&SignedDetails{},
+	func(token *jwt.Token) (interface{}, error) {
+		return []byte(SECRET_KEY), nil
+	},
+)
+```
+
+### 🔍 What's happening?
+
+* `jwt.ParseWithClaims`: Parses and **validates** the JWT.
+
+  * `signedToken`: the raw token string sent by the user.
+  * `&SignedDetails{}`: tells JWT how to decode the custom claims you expect.
+  * The **3rd argument** is a callback function that returns the secret key needed to verify the token signature.
+
+#### 🛡️ Purpose of the callback function:
+
+```go
+func(token *jwt.Token) (interface{}, error) {
+	return []byte(SECRET_KEY), nil
+}
+```
+
+* This is used to return the secret key you used while signing.
+* It also ensures you're using a known key and algorithm.
+
+---
+
+## 🔒 Step 2: Extract the Claims
+
+```go
+claims, ok := token.Claims.(*SignedDetails)
+```
+
+### Explanation:
+
+* After parsing, the token contains a `.Claims` field, which should be your `SignedDetails` struct.
+* You're trying to **assert that** the claims inside the token are of type `*SignedDetails`.
+
+If they’re not (e.g., token was malformed or decoded incorrectly), then:
+
+```go
+if !ok {
+	msg = fmt.Sprintf("the token is invalid")
+	msg = err.Error()
+	return
+}
+```
+
+* `msg = err.Error()` gives the actual parsing error (e.g., invalid signature).
+* The function returns early.
+
+---
+
+## ⏳ Step 3: Check Expiry
+
+```go
+if claims.ExpiresAt < time.Now().Local().Unix() {
+	msg = fmt.Sprint("token is expired")
+	msg = err.Error()
+	return
+}
+```
+
+### What is this doing?
+
+* `claims.ExpiresAt`: You set this when signing the token (in `StandardClaims`).
+* `time.Now().Local().Unix()`: Current time in Unix timestamp format.
+* If `ExpiresAt` is in the past → token has **expired** → reject it.
+
+---
+
+## ✅ Final Return
+
+```go
+return claims, msg
+```
+
+* If everything went well:
+
+  * `claims` contains all user info (`Email`, `Uid`, etc.)
+  * `msg` is `""` (empty), meaning no error.
+
+---
+
+## 🧪 Example Use in Middleware
+
+In your `AuthMiddleware` or protected route, you’d typically do:
+
+```go
+claims, errMsg := helper.ValidateToken(token)
+if errMsg != "" {
+	c.JSON(http.StatusUnauthorized, gin.H{"error": errMsg})
+	return
+}
+```
+
+So if:
+
+* Token is invalid → reject with `401 Unauthorized`.
+* Token is valid → proceed with `claims.Email`, etc.
+
+---
+
+## 🧠 Summary Table
+
+| Line                                   | Explanation                                                                |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| `jwt.ParseWithClaims(...)`             | Parses and validates the token against secret and expected claim structure |
+| `&SignedDetails{}`                     | Custom struct to parse the claims into (user details + expiration)         |
+| `token.Claims.(*SignedDetails)`        | Type assertion: make sure the claims are of the correct type               |
+| `claims.ExpiresAt < time.Now().Unix()` | Manual expiration check                                                    |
+| `msg = err.Error()`                    | Gives detailed parsing or expiry error                                     |
+
+---
+
+## 🚨 One gotcha to watch
+
+If `jwt.ParseWithClaims()` fails (e.g. due to malformed token), `token` could be `nil`, so technically a safer version is:
+
+```go
+if err != nil || token == nil {
+	msg = "token parsing failed"
+	return
+}
+```
+
+
+
+
+Yes, let’s walk through **how this token is used in the login/signup flow** *and* then how it’s **validated during authenticated requests**.
+
+We'll break it into **two flows**:
+
+---
+
+## 🔐 1. **Token Generation During Signup/Login**
+
+This is where the user gets their **access token** and **refresh token** after logging in or signing up.
+
+### 📦 Usually in `controllers/auth.go`:
+
+```go
+token, refreshToken, err := helper.GenerateAllTokens(
+	user.Email,
+	user.First_name,
+	user.Last_name,
+	user.User_id,
+)
+```
+
+> 🔁 This calls your `GenerateAllTokens()` function, which:
+
+* Creates a `SignedDetails` struct (custom claims).
+* Signs it using `jwt.NewWithClaims()`.
+* Returns a JWT string (the token) and refresh token.
+
+### 🧠 What happens next?
+
+The controller typically:
+
+```go
+user.Token = token
+user.RefreshToken = refreshToken
+```
+
+And then either:
+
+* Saves them in MongoDB with the user document (optional).
+* Or just returns them in the response:
+
+```go
+c.JSON(http.StatusOK, gin.H{
+	"token": token,
+	"refresh_token": refreshToken,
+	"user": user,
+})
+```
+
+Now the client (frontend or mobile app) stores that token — usually in `localStorage`, `cookies`, or a secure storage mechanism.
+
+---
+
+## 🔒 2. **Token Validation in Protected Routes**
+
+This happens when a user sends a request to a protected API, like:
+
+```http
+GET /user/profile
+Authorization: Bearer <your.jwt.token>
+```
+
+### 🛡️ In Gin, you create an **auth middleware**:
+
+```go
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		clientToken := c.Request.Header.Get("Authorization")
+
+		if clientToken == "" {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "No Authorization header provided"})
+			c.Abort()
+			return
+		}
+
+		// Remove "Bearer " prefix
+		tokenString := strings.Split(clientToken, " ")[1]
+
+		claims, msg := helper.ValidateToken(tokenString)
+		if msg != "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": msg})
+			c.Abort()
+			return
+		}
+
+		// Attach user claims to context for downstream access
+		c.Set("email", claims.Email)
+		c.Set("uid", claims.Uid)
+
+		c.Next()
+	}
+}
+```
+
+### 📌 Now any route you want to protect, you use:
+
+```go
+router.GET("/user/profile", middleware.AuthMiddleware(), controller.GetUserProfile())
+```
+
+---
+
+## 🧠 So in short:
+
+| Step                      | What Happens                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| **Login/Signup**          | Server generates token using user info, signs it with secret, sends it to client |
+| **Frontend stores**       | JWT stored locally or in cookies                                                 |
+| **Client sends requests** | Sends token in `Authorization` header                                            |
+| **Server Middleware**     | Validates token using `ValidateToken()`                                          |
+| **Protected Route**       | Uses claims to identify user (`c.Get("uid")`, etc.)                              |
+
+---
+
+
+
+
+
+
+
+
+
+## 🪪 JWT Token vs 🔁 Refresh Token — What’s the Difference?
+
+| Feature              | **JWT Token (Access Token)**                | **Refresh Token**                                      |
+| -------------------- | ------------------------------------------- | ------------------------------------------------------ |
+| 🔐 **Purpose**       | Proves the user is logged in                | Used to get a **new JWT** after the old one expires    |
+| ⏳ **Expiry Time**    | Short-lived (e.g. 15 min to 24 hours)       | Long-lived (e.g. 7–30 days)                            |
+| 📦 **Contains Data** | Yes — includes user info (email, id, etc.)  | Usually not — just a secure string                     |
+| 📤 **Used in...**    | Sent on **every request to protected APIs** | Only sent to `/refresh` endpoint                       |
+| 📦 **Stored Where?** | Usually in `cookie` or `localStorage`       | Secure cookie or localStorage (rare, if secured)       |
+| 🔁 **Used For?**     | Authenticating API calls                    | Getting a new JWT without forcing the user to re-login |
+
+---
+
+## 🔐 Why Do We Need *Both*?
+
+If you only used a JWT with long expiry (like 30 days):
+
+* 🧨 It would be risky — if the token gets stolen, attacker has access for 30 days.
+* ❌ You’d have to ask the user to re-login if the short-lived token expires.
+
+So we do this:
+
+1. 🔓 **JWT** is short-lived → safer
+2. 🔁 **Refresh Token** stays longer → lets us silently refresh the JWT
+
+---
+
+## 🔄 Example Flow
+
+1. ✅ **User logs in**
+
+   * Server sends:
+
+     * JWT (valid 15 min – 1 day)
+     * Refresh Token (valid 7–30 days)
+
+2. 🔐 **User makes API requests** with JWT
+
+3. ⏰ **JWT expires**
+
+   * Client automatically sends refresh token to `/refresh`
+   * Server checks if refresh token is valid
+   * ✅ If valid, new JWT is sent back
+
+4. 🚫 **If refresh token is invalid** → force user to login again
+
+---
+
+## 🔥 Visual Summary:
+
+```
+[ Login ] 
+    ↓
+[JWT] <--- 15 min expiry → used in API calls
+[Refresh Token] <--- 7 days expiry → used to get new JWT
+
+When JWT expires:
+    → Send refresh token to server
+    → Get new JWT back
+```
+
+---
+
+
+
+
+
+
+
+
+Signup: User registers → password hashed → JWT tokens generated → stored in DB
+Login: User logs in → password verified → new JWT tokens generated → updated in DB
+Protected Routes: Token validated → user info extracted → request proceeds
